@@ -275,29 +275,31 @@ static void anim_knight_rider(Leds *leds, const LedStrip *strip, const LedBar *b
     }
 }
 
-static void anim_felony(Leds *leds, const LedStrip *strip, float time) {
+static void anim_felony(Leds *leds, const LedStrip *strip, const LedBar *bar, float time) {
     uint32_t color_off = 0x00000000;
-    uint32_t color_red = 0x00ff0000;
-    uint32_t color_blu = 0x000000ff;
 
     float state_duration = 0.05f;
     float state_mod = fmodf(time, 3.0f * state_duration);
 
     uint8_t half_len = strip->length / 2;
     if (state_mod < state_duration) {
-        strip_set_color_range(leds, strip, color_red, strip->brightness, 1.0f, 0, half_len);
+        strip_set_color_range(
+            leds, strip, colors[bar->color1], strip->brightness, 1.0f, 0, half_len
+        );
         strip_set_color_range(
             leds, strip, color_off, strip->brightness, 1.0f, half_len, strip->length
         );
     } else if (state_mod < 2.0f * state_duration) {
         strip_set_color_range(leds, strip, color_off, strip->brightness, 1.0f, 0, half_len);
         strip_set_color_range(
-            leds, strip, color_blu, strip->brightness, 1.0f, half_len, strip->length
+            leds, strip, colors[bar->color2], strip->brightness, 1.0f, half_len, strip->length
         );
     } else {
-        strip_set_color_range(leds, strip, color_blu, strip->brightness, 1.0f, 0, half_len);
         strip_set_color_range(
-            leds, strip, color_red, strip->brightness, 1.0f, half_len, strip->length
+            leds, strip, colors[bar->color2], strip->brightness, 1.0f, 0, half_len
+        );
+        strip_set_color_range(
+            leds, strip, colors[bar->color1], strip->brightness, 1.0f, half_len, strip->length
         );
     }
 }
@@ -322,7 +324,7 @@ static void led_strip_animate(Leds *leds, const LedStrip *strip, const LedBar *b
         anim_knight_rider(leds, strip, bar, time);
         break;
     case LED_MODE_FELONY:
-        anim_felony(leds, strip, time);
+        anim_felony(leds, strip, bar, time);
         break;
     }
 }
