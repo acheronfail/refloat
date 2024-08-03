@@ -311,9 +311,6 @@ static void led_strip_animate(Leds *leds, const LedStrip *strip, const LedBar *b
     case LED_MODE_SOLID:
         strip_set_color(leds, strip, colors[bar->color1], strip->brightness, 1.0f);
         break;
-    case LED_MODE_FADE:
-        anim_fade(leds, strip, bar, time);
-        break;
     case LED_MODE_PULSE:
         anim_pulse(leds, strip, bar, time, strip->length / 5.0f);
         break;
@@ -323,6 +320,7 @@ static void led_strip_animate(Leds *leds, const LedStrip *strip, const LedBar *b
     case LED_MODE_KNIGHT_RIDER:
         anim_knight_rider(leds, strip, bar, time);
         break;
+    case LED_MODE_FADE:
     case LED_MODE_FELONY:
         anim_felony(leds, strip, bar, time);
         break;
