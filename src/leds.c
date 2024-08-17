@@ -100,21 +100,26 @@ static uint32_t color_blend(uint32_t color1, uint32_t color2, float blend) {
     return RGBW(r, g, b, w);
 }
 
-// This function is an approximation of `sqrtf(sinf(x) * 0.5 + 0.5)`
-inline static float taylor_series(float zero_to_tau) {
-    float x = (-0.5 * zero_to_tau) + 2.4;
+// This function approximates `sinf` using the Taylor Series. In its current
+// state it's only accurate for values between +/- PI.
+inline static float taylor_series(float x) {
     float x3 = x * x * x;
     float x5 = x3 * x * x;
-    float r = fabs(x - (x3 / 6.0) + (x5 / 120.0));
-    return fminf(r, 1.0f);
+    float x7 = x5 * x * x;
+    float r = x - (x3 / 6.0) + (x5 / 120.0) - (x7 / 5040.0);
+    return clampf(r, -1.0f, 1.0f);
 }
 
-static uint32_t color_wheel(uint8_t pos) {
-    float norm = (float) pos / 255.0;
-    float r = taylor_series((norm + 0.0 / 3.0) * TAU);
-    float b = taylor_series((norm + 1.0 / 3.0) * TAU);
-    float g = taylor_series((norm + 2.0 / 3.0) * TAU);
-    return ((uint8_t) (r * 255) << 16) | ((uint8_t) (g * 255) << 8) | (uint8_t) (b * 255);
+// Given a number between 0 and 1, return a color that cycles between colors
+// that naturally resemble a rainbow spectrum.
+static uint32_t color_wheel(float pos) {
+    static const float offset = M_PI / 3.0f;
+    float base = pos * M_PI;
+    float r = fabs(taylor_series(base));
+    float g = fabs(taylor_series(base - offset));
+    float b = fabs(taylor_series(base + offset));
+
+    return ((uint8_t) (r * 255.0f) << 16) | ((uint8_t) (g * 255.0f) << 8) | (uint8_t) (b * 255.0f);
 }
 
 static void sattolo_shuffle(uint32_t seed, uint8_t *array, uint8_t length) {
@@ -280,9 +285,10 @@ static void anim_knight_rider(Leds *leds, const LedStrip *strip, const LedBar *b
 
 static void anim_felony(Leds *leds, const LedStrip *strip, const LedBar *bar, float time) {
     static const uint32_t color_off = 0x00000000;
+    static const float state_count = 3.0f;
 
-    static const float state_duration = 0.05f;
-    float state_mod = fmodf(time, 3.0f * state_duration);
+    float state_duration = 1.0f / state_count;
+    float state_mod = fmodf(time, state_count * state_duration);
 
     // also account for led strips with odd numbers of leds (leaving the middle one black)
     uint8_t stop_idx = strip->length / 2;
@@ -329,13 +335,7 @@ static void anim_rainbow_cycle(Leds *leds, const LedStrip *strip, float time) {
 }
 
 static void anim_rgb_fade(Leds *leds, const LedStrip *strip, float time) {
-    strip_set_color(
-        leds,
-        strip,
-        color_wheel((uint8_t) floorf(fmodf(time, 4.0f) * 255.0f)),
-        strip->brightness,
-        1.0f
-    );
+    strip_set_color(leds, strip, color_wheel(fmodf(time, 1.0f)), strip->brightness, 1.0f);
 }
 
 static void led_strip_animate(Leds *leds, const LedStrip *strip, const LedBar *bar, float time) {
@@ -585,7 +585,7 @@ static void trans_cipher(
                 } else {
                     // random fade to white
                     uint8_t wf = rnd(j + target_j + 23) % 128 + 80;
-                    color = color_wheel(r) | RGB(wf, wf, wf);
+                    color = color_wheel(r / 255.0f) | RGB(wf, wf, wf);
                 }
             }
 
