@@ -100,20 +100,47 @@ static uint32_t color_blend(uint32_t color1, uint32_t color2, float blend) {
     return RGBW(r, g, b, w);
 }
 
-// This function is an approximation of `sqrtf(sinf(x) * 0.5 + 0.5)`
-inline static float taylor_series(float zero_to_tau) {
-    float x = (-0.5 * zero_to_tau) + 2.4;
-    float x3 = x * x * x;
-    float x5 = x3 * x * x;
-    float r = fabs(x - (x3 / 6.0) + (x5 / 120.0));
-    return fminf(r, 1.0f);
+// Returns a cosine wave oscillating from 0 to 1, starting at 0, with a period of 2s.
+static float cosine_progress(float time) {
+    uint32_t rounded = lroundf(time);
+    float x = (time - rounded) * M_PI;
+    // Bhaskara cosine approximation, optimized to return: (1 - cos(x)) / 2
+    float cos = 10 * x * x / (4 * x * x + 4 * M_PI * M_PI);
+    if (rounded % 2 == 1) {
+        cos = 1 - cos;
+    }
+    return cos;
+}
+
+float tweak(float x, float a) {
+    if (x < 1.0f) {
+        return 1.0f - powf(1.0f - x, a);
+    } else if (x < 2.0f) {
+        return 1.0f + powf(x - 1.0f, a);
+    }
+    return 0.0f;
 }
 
 static uint32_t color_wheel(uint8_t pos) {
-    float norm = (float) pos / 255.0;
-    float r = taylor_series((norm + 0.0 / 3.0) * TAU);
-    float b = taylor_series((norm + 1.0 / 3.0) * TAU);
-    float g = taylor_series((norm + 2.0 / 3.0) * TAU);
+    float norm = (float) pos / 255.0f * 3.0f;
+    float r_norm = fmodf(norm + 1.0f, 3.0f);
+    float g_norm = norm;
+    float b_norm = fmodf(norm + 2.0f, 3.0f);
+    float r = 0;
+    float b = 0;
+    float g = 0;
+
+    if (r_norm <= 2.0f) {
+        r = cosine_progress(tweak(r_norm, 3.6f));
+    }
+
+    if (g_norm <= 2.0f) {
+        g = cosine_progress(tweak(g_norm, 2.6f));
+    }
+
+    if (b_norm <= 2.0f) {
+        b = cosine_progress(tweak(b_norm, 2.0f));
+    }
     return ((uint8_t) (r * 255) << 16) | ((uint8_t) (g * 255) << 8) | (uint8_t) (b * 255);
 }
 
@@ -192,18 +219,6 @@ static void strip_set_color(
     Leds *leds, const LedStrip *strip, uint32_t color, float brightness, float blend
 ) {
     strip_set_color_range(leds, strip, color, brightness, blend, 0, strip->length);
-}
-
-// Returns a cosine wave oscillating from 0 to 1, starting at 0, with a period of 2s.
-static float cosine_progress(float time) {
-    uint32_t rounded = lroundf(time);
-    float x = (time - rounded) * M_PI;
-    // Bhaskara cosine approximation, optimized to return: (1 - cos(x)) / 2
-    float cos = 10 * x * x / (4 * x * x + 4 * M_PI * M_PI);
-    if (rounded % 2 == 1) {
-        cos = 1 - cos;
-    }
-    return cos;
 }
 
 static void anim_fade(Leds *leds, const LedStrip *strip, const LedBar *bar, float time) {
@@ -329,13 +344,20 @@ static void anim_rainbow_cycle(Leds *leds, const LedStrip *strip, float time) {
 }
 
 static void anim_rgb_fade(Leds *leds, const LedStrip *strip, float time) {
-    strip_set_color(
-        leds,
-        strip,
-        color_wheel((uint8_t) floorf(fmodf(time, 4.0f) * 255.0f)),
-        strip->brightness,
-        1.0f
-    );
+    // set to e.g. 6 to see 1/6 of the wheel
+    const int portion = 1;
+    // if portion is > 1, use offset to pick the different sections of the wheel
+    const int offset = (int) (fmodf(time, 1.0f) * 255.0f);
+    for (int i = 0; i < strip->length; ++i) {
+        led_set_color(
+            leds,
+            strip,
+            i,
+            color_wheel(255.0f / portion * offset + 255.0f / portion * ((float) i / strip->length)),
+            strip->brightness,
+            1.0f
+        );
+    }
 }
 
 static void led_strip_animate(Leds *leds, const LedStrip *strip, const LedBar *bar, float time) {
