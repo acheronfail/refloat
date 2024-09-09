@@ -27,30 +27,9 @@ void footpad_sensor_update(FootpadSensor *fs, const RefloatConfig *config) {
         fs->adc2 = 0.0;
     }
 
-    fs->state = FS_NONE;
-
-    if (config->fault_adc1 == 0 && config->fault_adc2 == 0) {  // No sensors
+    fs->state = FS_RIGHT;
+    if (fs->adc1 > config->fault_adc1) {
         fs->state = FS_BOTH;
-    } else if (config->fault_adc2 == 0) {  // Single sensor on ADC1
-        if (fs->adc1 > config->fault_adc1) {
-            fs->state = FS_BOTH;
-        }
-    } else if (config->fault_adc1 == 0) {  // Single sensor on ADC2
-        if (fs->adc2 > config->fault_adc2) {
-            fs->state = FS_BOTH;
-        }
-    } else {  // Double sensor
-        if (fs->adc1 > config->fault_adc1) {
-            if (fs->adc2 > config->fault_adc2) {
-                fs->state = FS_BOTH;
-            } else {
-                fs->state = FS_LEFT;
-            }
-        } else {
-            if (fs->adc2 > config->fault_adc2) {
-                fs->state = FS_RIGHT;
-            }
-        }
     }
 }
 
