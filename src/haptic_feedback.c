@@ -55,6 +55,11 @@ static HapticFeedbackType haptic_feedback_get_type(
         return HAPTIC_FEEDBACK_ERROR_FATAL;
     }
 
+    if (alert_tracker_is_alert_active(at, ALERT_ADC_FULL) ||
+        alert_tracker_is_alert_active(at, ALERT_ADC_HALF)) {
+        return HAPTIC_FEEDBACK_SENSOR_ALERT;
+    }
+
     switch (state->sat) {
     case SAT_PB_DUTY:
         if (md->duty_cycle.value > hf->duty_solid_threshold) {
@@ -91,6 +96,8 @@ static uint8_t get_beats(HapticFeedbackType type) {
         return 2;
     case HAPTIC_FEEDBACK_DUTY_CONTINUOUS:
         return 0;
+    case HAPTIC_FEEDBACK_SENSOR_ALERT:
+        return 4;
     case HAPTIC_FEEDBACK_ERROR_TEMPERATURE:
         return 6;
     case HAPTIC_FEEDBACK_ERROR_VOLTAGE:
@@ -109,6 +116,8 @@ static const CfgHapticTone *get_haptic_tone(const HapticFeedback *hf) {
     case HAPTIC_FEEDBACK_DUTY_SPEED:
     case HAPTIC_FEEDBACK_DUTY_CONTINUOUS:
         return &hf->cfg->duty;
+    case HAPTIC_FEEDBACK_SENSOR_ALERT:
+        return &hf->cfg->sensor;
     case HAPTIC_FEEDBACK_ERROR_TEMPERATURE:
     case HAPTIC_FEEDBACK_ERROR_VOLTAGE:
     case HAPTIC_FEEDBACK_ERROR_FATAL:

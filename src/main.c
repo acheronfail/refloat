@@ -794,6 +794,8 @@ static void refloat_thd(void *arg) {
 
     uint32_t loop_timer = VESC_IF->timer_time_now();
     float dt = 0.0f;
+    bool sensor_alert_pending = false;
+    time_t sensor_alert_timer = 0;
 
     while (!VESC_IF->should_terminate()) {
         // sleep first to have a correct dt on the first iteration
@@ -844,6 +846,42 @@ static void refloat_thd(void *arg) {
             beep_off(d, false);
         }
 
+        bool sensor_alert_full = false;
+        bool sensor_alert_half = false;
+        if (d->state.state == STATE_RUNNING && d->state.mode != MODE_FLYWHEEL &&
+            d->motor.abs_erpm > d->switch_warn_beep_erpm) {
+            sensor_alert_full = d->footpad.state == FS_NONE;
+            sensor_alert_half = d->footpad.state == FS_LEFT || d->footpad.state == FS_RIGHT;
+        }
+
+        bool sensor_alert_condition = sensor_alert_full || sensor_alert_half;
+        bool sensor_alert_delayed = false;
+        if (sensor_alert_condition) {
+            if (!sensor_alert_pending) {
+                timer_refresh(&d->time, &sensor_alert_timer);
+                sensor_alert_pending = true;
+            }
+            sensor_alert_delayed =
+                timer_older_ms(&d->time, sensor_alert_timer, d->float_conf.haptic.sensor_timeout);
+        } else {
+            sensor_alert_pending = false;
+        }
+
+        if (d->float_conf.haptic.sensor_mode == HAPTIC_SENSOR_ALERT_FULL && sensor_alert_delayed &&
+            sensor_alert_full) {
+            alert_tracker_add(&d->alert_tracker, &d->time, ALERT_ADC_FULL, 0);
+        } else if (d->float_conf.haptic.sensor_mode == HAPTIC_SENSOR_ALERT_HALF &&
+                   sensor_alert_delayed && sensor_alert_half) {
+            alert_tracker_add(&d->alert_tracker, &d->time, ALERT_ADC_HALF, 0);
+        } else if (d->float_conf.haptic.sensor_mode == HAPTIC_SENSOR_ALERT_BOTH) {
+            if (sensor_alert_delayed && sensor_alert_full) {
+                alert_tracker_add(&d->alert_tracker, &d->time, ALERT_ADC_FULL, 0);
+            }
+            if (sensor_alert_delayed && sensor_alert_half) {
+                alert_tracker_add(&d->alert_tracker, &d->time, ALERT_ADC_HALF, 0);
+            }
+        }
+
         haptic_feedback_update(
             &d->haptic_feedback,
             &d->motor_control,
@@ -865,7 +903,6 @@ static void refloat_thd(void *arg) {
         switch (d->state.state) {
         case (STATE_STARTUP):
             if (VESC_IF->imu_startup_done()) {
-                reset_runtime_vars(d);
                 // set state to READY so we need to meet start conditions to start
                 d->state.state = STATE_READY;
 
